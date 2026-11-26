@@ -1,0 +1,971 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lampung Geh News API",
+    "version": "1.0.0",
+    "description": "Kontrak REST API Headless CMS (Laravel 11/12 + FilamentPHP v3) untuk Frontend Publik (Next.js 15 App Router) PT Lampung Geh Helau."
+  },
+  "servers": [
+    {
+      "url": "https://lampunggehnews.com/api/v1",
+      "description": "Production Laravel API"
+    },
+    {
+      "url": "http://127.0.0.1:8000/api/v1",
+      "description": "Local / Single-VPS Loopback Laravel API"
+    }
+  ],
+  "tags": [
+    { "name": "Homepage & Layout", "description": "Agregasi beranda, navigasi, dan widget sidebar" },
+    { "name": "Articles", "description": "Daftar berita, pencarian FULLTEXT, arsip, detail artikel, dan Live Report" },
+    { "name": "Interactions", "description": "Leave a Reply (komentar tanpa login) dan async view counter" },
+    { "name": "Taxonomy & Pages", "description": "Kategori hierarkis, 15 tag daerah Lampung, profil penulis, dan halaman statis" },
+    { "name": "SEO & Revalidation", "description": "Google News Sitemap (< 48 jam) dan webhook ISR Next.js" }
+  ],
+  "paths": {
+    "/home": {
+      "get": {
+        "tags": ["Homepage & Layout"],
+        "summary": "Ambil seluruh paket data 11 blok Homepage + Mega-Menu",
+        "description": "Endpoint teragregasi (di-cache di Redis 5 menit, di-flush otomatis oleh Laravel Observer) untuk mengurangi round-trip HTTP saat Next.js SSR/ISR.",
+        "operationId": "getHomePayload",
+        "security": [{ "InternalApiKey": [] }, {}],
+        "responses": {
+          "200": {
+            "description": "Data beranda lengkap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/HomePayload" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sidebar": {
+      "get": {
+        "tags": ["Homepage & Layout"],
+        "summary": "Ambil paket 4 widget sidebar (Recent Posts, Recent Comments, Archives)",
+        "description": "Digunakan pada halaman kategori, tag daerah, profil penulis, arsip bulanan, dan detail artikel.",
+        "operationId": "getSidebarPayload",
+        "security": [{ "InternalApiKey": [] }, {}],
+        "responses": {
+          "200": {
+            "description": "Data widget sidebar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/SidebarPayload" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/navigation": {
+      "get": {
+        "tags": ["Homepage & Layout"],
+        "summary": "Ambil menu header, tautan ekosistem footer, media sosial, dan 15 tag daerah",
+        "operationId": "getNavigation",
+        "responses": {
+          "200": {
+            "description": "Struktur navigasi header dan footer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/NavigationPayload" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles": {
+      "get": {
+        "tags": ["Articles"],
+        "summary": "Daftar artikel berpaginasi dengan filter kategori, tag, author, arsip bulanan, wilayah, dan pencarian FULLTEXT",
+        "operationId": "listArticles",
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "description": "Slug kategori atau sub-kategori (misal: news, pemerintahan, feature)" },
+          { "name": "tag", "in": "query", "schema": { "type": "string" }, "description": "Slug tag daerah atau topik (misal: bandar-lampung, lampung-timur)" },
+          { "name": "author", "in": "query", "schema": { "type": "string" }, "description": "Username penulis (misal: ridhoadwip)" },
+          { "name": "year", "in": "query", "schema": { "type": "integer", "minimum": 2020 }, "description": "Filter tahun arsip (YYYY)" },
+          { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 12 }, "description": "Filter bulan arsip (1-12)" },
+          {
+            "name": "region",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["bandar_lampung", "lampung", "nasional"] },
+            "description": "Filter cakupan wilayah berita"
+          },
+          { "name": "has_video", "in": "query", "schema": { "type": "boolean" }, "description": "Jika true, hanya tampilkan artikel yang memiliki video_url" },
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["standard", "live_report"] } },
+          { "name": "live_status", "in": "query", "schema": { "type": "string", "enum": ["live", "ended"] } },
+          { "name": "q", "in": "query", "schema": { "type": "string", "minLength": 2 }, "description": "Kata kunci pencarian MySQL InnoDB FULLTEXT (title, excerpt, content)" },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1, "minimum": 1 } },
+          { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 12, "minimum": 1, "maximum": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar artikel berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta", "links"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ArticleCard" }
+                    },
+                    "context": {
+                      "type": ["object", "null"],
+                      "description": "Metadata arsip aktif untuk render header (Category : X / Tag : Y / Archives : Nov 2026)",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["category", "tag", "author", "archive", "search"] },
+                        "label": { "type": "string", "example": "Category : News" },
+                        "description": { "type": ["string", "null"] }
+                      }
+                    },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" },
+                    "links": { "$ref": "#/components/schemas/PaginationLinks" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{year}/{month}/{day}/{slug}": {
+      "get": {
+        "tags": ["Articles"],
+        "summary": "Ambil detail artikel lengkap beserta Live Report entries, artikel terkait, dan komentar approved",
+        "operationId": "getArticleDetail",
+        "parameters": [
+          { "name": "year", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^\\d{4}$" }, "example": "2026" },
+          { "name": "month", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^(0[1-9]|1[0-2])$" }, "example": "11" },
+          { "name": "day", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^(0[1-9]|[12]\\d|3[01])$" }, "example": "26" },
+          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" }, "example": "remaja-17-tahun-ditangkap-usai-curi-motor-di-lampung-timur" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detail artikel ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/ArticleDetail" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artikel tidak ditemukan atau belum berstatus published",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{id}/comments": {
+      "post": {
+        "tags": ["Interactions"],
+        "summary": "Kirim komentar publik baru (Leave a Reply tanpa login)",
+        "description": "Memvalidasi token Cloudflare Turnstile dan honeypot, memeriksa kedalaman nested reply (maksimal 2 level), menerapkan rate limit (3 request / 10 menit / IP), lalu menyimpan komentar dengan status default 'pending'.",
+        "operationId": "createArticleComment",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CommentCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Komentar diterima dan menunggu moderasi editor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["message", "data"],
+                  "properties": {
+                    "message": { "type": "string", "example": "Komentar Anda telah terkirim dan sedang menunggu moderasi redaksi." },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer" },
+                        "status": { "type": "string", "enum": ["pending"] },
+                        "created_at": { "type": "string", "format": "date-time" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Kesalahan validasi field, token Turnstile tidak valid, atau nested reply melebihi 2 level",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Melebihi batas rate limit (3 komentar per 10 menit per IP)",
+            "headers": {
+              "Retry-After": { "schema": { "type": "integer" }, "description": "Detik hingga percobaan berikutnya" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/articles/{id}/view": {
+      "post": {
+        "tags": ["Interactions"],
+        "summary": "Catat penambahan pageview artikel secara asinkron via Redis Queue",
+        "description": "Dipanggil dari client-side Next.js secara ringan agar tidak memblokir SSR dan tidak menyebabkan lock MySQL saat trafik viral.",
+        "operationId": "recordArticleView",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "202": {
+            "description": "View counter berhasil masuk antrean Redis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queued": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artikel tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": ["Taxonomy & Pages"],
+        "summary": "Daftar hierarki 6 kategori utama beserta sub-kategorinya",
+        "operationId": "listCategories",
+        "responses": {
+          "200": {
+            "description": "Daftar kategori pohon (parent-children)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/CategoryNode" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "tags": ["Taxonomy & Pages"],
+        "summary": "Daftar tag daerah (15 kab/kota Lampung) dan tag topik",
+        "operationId": "listTags",
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["region", "topic"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar tag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Tag" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/authors/{username}": {
+      "get": {
+        "tags": ["Taxonomy & Pages"],
+        "summary": "Profil penulis dan daftar artikel terbit miliknya",
+        "operationId": "getAuthorProfile",
+        "parameters": [
+          { "name": "username", "in": "path", "required": true, "schema": { "type": "string" }, "example": "deauliahanda" },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "per_page", "in": "query", "schema": { "type": "integer", "default": 12 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profil penulis dan daftar artikel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["author", "articles", "meta"],
+                      "properties": {
+                        "author": { "$ref": "#/components/schemas/AuthorSummary" },
+                        "articles": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/ArticleCard" }
+                        },
+                        "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Penulis tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pages/{slug}": {
+      "get": {
+        "tags": ["Taxonomy & Pages"],
+        "summary": "Ambil konten halaman statis CMS (about, pedoman-media)",
+        "operationId": "getStaticPage",
+        "parameters": [
+          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string", "enum": ["about", "pedoman-media"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Konten halaman statis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/StaticPage" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Halaman statis tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sitemap/news": {
+      "get": {
+        "tags": ["SEO & Revalidation"],
+        "summary": "Daftar artikel terbit < 48 jam untuk Google News Sitemap (/news-sitemap.xml)",
+        "operationId": "getNewsSitemap",
+        "responses": {
+          "200": {
+            "description": "Item berita 48 jam terakhir",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/NewsSitemapItem" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/revalidate": {
+      "servers": [
+        {
+          "url": "http://127.0.0.1:3000",
+          "description": "Internal Next.js 15 Server (Loopback VPS)"
+        }
+      ],
+      "post": {
+        "tags": ["SEO & Revalidation"],
+        "summary": "Webhook On-Demand ISR Revalidation (Laravel Observer -> Next.js)",
+        "description": "Dipanggil otomatis oleh Laravel Observer saat artikel di-publish/di-update, entri Live Report ditambahkan, komentar di-approve, atau halaman statis diperbarui.",
+        "operationId": "triggerNextRevalidation",
+        "security": [{ "RevalidateSecret": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RevalidateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cache Next.js berhasil disegarkan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revalidated": { "type": "boolean", "example": true },
+                    "paths": { "type": "array", "items": { "type": "string" } },
+                    "tags": { "type": "array", "items": { "type": "string" } },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Header X-Revalidate-Secret tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "InternalApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Kunci internal antar-layanan Next.js SSR dan Laravel di VPS tunggal."
+      },
+      "RevalidateSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Revalidate-Secret",
+        "description": "Secret token lokal untuk otorisasi webhook On-Demand ISR Next.js."
+      }
+    },
+    "schemas": {
+      "MediaVariants": {
+        "type": "object",
+        "description": "4 varian WebP otomatis (Spatie MediaLibrary) untuk optimasi next/image lintas Mobile, Full HD, dan 2K.",
+        "required": ["thumbnail", "card", "detail", "og_image"],
+        "properties": {
+          "thumbnail": { "type": "string", "format": "uri", "description": "320x180 WebP (sidebar/list mobile)" },
+          "card": { "type": "string", "format": "uri", "description": "640x360 WebP (kartu grid)" },
+          "detail": { "type": "string", "format": "uri", "description": "1440x810 WebP (Hero & Detail artikel Full HD/2K)" },
+          "og_image": { "type": "string", "format": "uri", "description": "1200x630 WebP/JPG (OpenGraph WA/X/FB)" }
+        }
+      },
+      "FeaturedImage": {
+        "type": "object",
+        "required": ["variants"],
+        "properties": {
+          "variants": { "$ref": "#/components/schemas/MediaVariants" },
+          "caption": { "type": ["string", "null"] },
+          "credit": { "type": ["string", "null"] },
+          "width": { "type": "integer", "example": 1440 },
+          "height": { "type": "integer", "example": 810 }
+        }
+      },
+      "AuthorSummary": {
+        "type": "object",
+        "required": ["id", "username", "name"],
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string", "example": "ridhoadwip" },
+          "name": { "type": "string", "example": "Ridho Adwi P" },
+          "bio": { "type": ["string", "null"] },
+          "avatar_url": { "type": ["string", "null"], "format": "uri" }
+        }
+      },
+      "CategorySummary": {
+        "type": "object",
+        "required": ["id", "name", "slug", "url"],
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string", "example": "Pemerintahan" },
+          "slug": { "type": "string", "example": "pemerintahan" },
+          "url": { "type": "string", "example": "/category/news/pemerintahan/" },
+          "parent": {
+            "type": ["object", "null"],
+            "properties": {
+              "id": { "type": "integer" },
+              "name": { "type": "string", "example": "News" },
+              "slug": { "type": "string", "example": "news" },
+              "url": { "type": "string", "example": "/category/news/" }
+            }
+          }
+        }
+      },
+      "CategoryNode": {
+        "type": "object",
+        "required": ["id", "name", "slug", "url", "sort_order", "children"],
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "url": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "sort_order": { "type": "integer" },
+          "articles_count": { "type": "integer" },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "slug", "url"],
+              "properties": {
+                "id": { "type": "integer" },
+                "name": { "type": "string" },
+                "slug": { "type": "string" },
+                "url": { "type": "string" },
+                "articles_count": { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "required": ["id", "name", "slug", "type", "url"],
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string", "example": "Bandar Lampung" },
+          "slug": { "type": "string", "example": "bandar-lampung" },
+          "type": { "type": "string", "enum": ["region", "topic"] },
+          "url": { "type": "string", "example": "/tag/bandar-lampung/" }
+        }
+      },
+      "ArticleCard": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "url",
+          "type",
+          "region_scope",
+          "reading_time_minutes",
+          "approved_comments_count",
+          "is_sponsored",
+          "published_at",
+          "category",
+          "author"
+        ],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "url": { "type": "string", "example": "/2026/11/26/judul-berita-lampung/" },
+          "excerpt": { "type": "string" },
+          "type": { "type": "string", "enum": ["standard", "live_report"] },
+          "live_status": { "type": ["string", "null"], "enum": ["live", "ended", null] },
+          "region_scope": { "type": "string", "enum": ["bandar_lampung", "lampung", "nasional"] },
+          "is_sponsored": { "type": "boolean" },
+          "sponsor_name": { "type": ["string", "null"] },
+          "video_url": { "type": ["string", "null"], "format": "uri" },
+          "reading_time_minutes": { "type": "integer", "example": 3 },
+          "approved_comments_count": { "type": "integer", "example": 0 },
+          "published_at": { "type": "string", "format": "date-time" },
+          "featured_image": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/FeaturedImage" },
+              { "type": "null" }
+            ]
+          },
+          "category": { "$ref": "#/components/schemas/CategorySummary" },
+          "author": { "$ref": "#/components/schemas/AuthorSummary" }
+        }
+      },
+      "LiveReportEntry": {
+        "type": "object",
+        "required": ["id", "title", "content", "author_name", "published_at", "time_wib"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string", "example": "Lalu Lintas Menuju Pelabuhan Bakauheni Mulai Padat" },
+          "content": { "type": "string" },
+          "image_url": { "type": ["string", "null"], "format": "uri" },
+          "author_name": { "type": "string" },
+          "published_at": { "type": "string", "format": "date-time" },
+          "time_wib": { "type": "string", "example": "11:15 WIB" }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "required": ["id", "parent_id", "guest_name", "content", "created_at"],
+        "properties": {
+          "id": { "type": "integer" },
+          "parent_id": { "type": ["integer", "null"] },
+          "guest_name": { "type": "string" },
+          "guest_website": { "type": ["string", "null"], "format": "uri" },
+          "content": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "replies": {
+            "type": "array",
+            "description": "Maksimal 1 tingkat balasan (total kedalaman 2 level). Selalu kosong pada item level 2.",
+            "items": {
+              "type": "object",
+              "required": ["id", "parent_id", "guest_name", "content", "created_at"],
+              "properties": {
+                "id": { "type": "integer" },
+                "parent_id": { "type": "integer" },
+                "guest_name": { "type": "string" },
+                "guest_website": { "type": ["string", "null"], "format": "uri" },
+                "content": { "type": "string" },
+                "created_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "ArticleDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ArticleCard" },
+          {
+            "type": "object",
+            "required": ["content", "views_count", "updated_at", "tags", "live_report_entries", "related_articles", "comments", "seo"],
+            "properties": {
+              "content": { "type": "string", "description": "HTML ter-sanitasi siap render di kolom 65ch-75ch" },
+              "views_count": { "type": "integer" },
+              "updated_at": { "type": "string", "format": "date-time" },
+              "editor": {
+                "type": ["object", "null"],
+                "properties": {
+                  "id": { "type": "integer" },
+                  "name": { "type": "string" }
+                }
+              },
+              "tags": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Tag" }
+              },
+              "live_report_entries": {
+                "type": "array",
+                "description": "Diurutkan published_at DESC (terbaru di atas). Kosong jika type='standard'.",
+                "items": { "$ref": "#/components/schemas/LiveReportEntry" }
+              },
+              "related_articles": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ArticleCard" }
+              },
+              "comments": {
+                "type": "array",
+                "description": "Hanya komentar berstatus approved",
+                "items": { "$ref": "#/components/schemas/Comment" }
+              },
+              "seo": {
+                "type": "object",
+                "required": ["meta_title", "meta_description", "canonical_url"],
+                "properties": {
+                  "meta_title": { "type": "string" },
+                  "meta_description": { "type": "string" },
+                  "canonical_url": { "type": "string", "format": "uri" },
+                  "og_image": { "type": ["string", "null"], "format": "uri" }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "HomePayload": {
+        "type": "object",
+        "required": [
+          "breaking_news",
+          "hero_slider",
+          "terkini_sidebar",
+          "berita_terkini",
+          "pemerintahan",
+          "olahraga",
+          "recommended",
+          "categories_shortcut",
+          "featured_news",
+          "featured_video",
+          "latest_posts",
+          "mega_menu_news"
+        ],
+        "properties": {
+          "breaking_news": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "hero_slider": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "terkini_sidebar": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "berita_terkini": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "pemerintahan": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "olahraga": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "recommended": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "categories_shortcut": { "type": "array", "items": { "$ref": "#/components/schemas/CategoryNode" } },
+          "featured_news": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "featured_video": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+          "latest_posts": {
+            "type": "object",
+            "required": ["items", "meta"],
+            "properties": {
+              "items": { "type": "array", "items": { "$ref": "#/components/schemas/ArticleCard" } },
+              "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+            }
+          },
+          "mega_menu_news": {
+            "type": "array",
+            "description": "Preview 4 berita terbaru per sub-kategori untuk hover Mega-Menu News",
+            "items": {
+              "type": "object",
+              "required": ["category", "articles"],
+              "properties": {
+                "category": { "$ref": "#/components/schemas/CategorySummary" },
+                "articles": {
+                  "type": "array",
+                  "maxItems": 4,
+                  "items": { "$ref": "#/components/schemas/ArticleCard" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SidebarPayload": {
+        "type": "object",
+        "required": ["recent_posts", "recent_comments", "monthly_archives"],
+        "properties": {
+          "recent_posts": {
+            "type": "array",
+            "maxItems": 5,
+            "items": { "$ref": "#/components/schemas/ArticleCard" }
+          },
+          "recent_comments": {
+            "type": "array",
+            "maxItems": 5,
+            "description": "Jika kosong ([]), frontend menampilkan 'No comments to show.'",
+            "items": {
+              "type": "object",
+              "required": ["id", "guest_name", "excerpt", "article_title", "article_url", "created_at"],
+              "properties": {
+                "id": { "type": "integer" },
+                "guest_name": { "type": "string" },
+                "excerpt": { "type": "string" },
+                "article_title": { "type": "string" },
+                "article_url": { "type": "string" },
+                "created_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
+          "monthly_archives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["year", "month", "label", "url", "count"],
+              "properties": {
+                "year": { "type": "integer", "example": 2026 },
+                "month": { "type": "integer", "example": 11 },
+                "label": { "type": "string", "example": "November 2026" },
+                "url": { "type": "string", "example": "/2026/11/" },
+                "count": { "type": "integer", "example": 42 }
+              }
+            }
+          }
+        }
+      },
+      "NavigationPayload": {
+        "type": "object",
+        "required": ["header_categories", "region_tags", "ecosystem_links", "social_links"],
+        "properties": {
+          "header_categories": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CategoryNode" }
+          },
+          "region_tags": {
+            "type": "array",
+            "description": "15 kabupaten/kota di Provinsi Lampung",
+            "items": { "$ref": "#/components/schemas/Tag" }
+          },
+          "ecosystem_links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["label", "url"],
+              "properties": {
+                "label": { "type": "string", "example": "Lowongan Lampung" },
+                "url": { "type": "string", "format": "uri", "example": "http://lowonganlampung.co.id/" }
+              }
+            }
+          },
+          "social_links": {
+            "type": "object",
+            "properties": {
+              "instagram": { "type": "string", "format": "uri" },
+              "facebook": { "type": "string", "format": "uri" },
+              "x": { "type": "string", "format": "uri" }
+            }
+          }
+        }
+      },
+      "CommentCreateRequest": {
+        "type": "object",
+        "required": ["guest_name", "guest_email", "content", "turnstile_token"],
+        "properties": {
+          "parent_id": { "type": ["integer", "null"], "description": "ID komentar induk level 1 (opsional)" },
+          "guest_name": { "type": "string", "minLength": 2, "maxLength": 100 },
+          "guest_email": { "type": "string", "format": "email", "description": "Privat, tidak pernah diekspos ke API publik" },
+          "guest_website": { "type": ["string", "null"], "format": "uri", "maxLength": 255 },
+          "content": { "type": "string", "minLength": 3, "maxLength": 2000 },
+          "turnstile_token": { "type": "string", "description": "Token respon widget Cloudflare Turnstile" },
+          "hp_field": { "type": ["string", "null"], "maxLength": 0, "description": "Honeypot anti-bot; wajib kosong" }
+        }
+      },
+      "StaticPage": {
+        "type": "object",
+        "required": ["id", "title", "slug", "content", "updated_at"],
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string", "example": "Pedoman Media Siber" },
+          "slug": { "type": "string", "example": "pedoman-media" },
+          "content": { "type": "string" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NewsSitemapItem": {
+        "type": "object",
+        "required": ["loc", "title", "published_at", "keywords"],
+        "properties": {
+          "loc": { "type": "string", "format": "uri", "example": "https://lampunggehnews.com/2026/11/26/judul-berita/" },
+          "title": { "type": "string" },
+          "published_at": { "type": "string", "format": "date-time" },
+          "keywords": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "RevalidateRequest": {
+        "type": "object",
+        "required": ["event"],
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "article.published",
+              "article.updated",
+              "article.archived",
+              "live_report.entry_added",
+              "comment.approved",
+              "page.updated"
+            ]
+          },
+          "paths": {
+            "type": "array",
+            "description": "Daftar path Next.js yang di-revalidate via revalidatePath()",
+            "items": { "type": "string" },
+            "example": ["/", "/category/news/", "/2026/11/26/judul-berita/"]
+          },
+          "tags": {
+            "type": "array",
+            "description": "Daftar cache tag Next.js via revalidateTag()",
+            "items": { "type": "string" },
+            "example": ["home", "sidebar", "article:102"]
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "required": ["current_page", "last_page", "per_page", "total"],
+        "properties": {
+          "current_page": { "type": "integer", "example": 1 },
+          "last_page": { "type": "integer", "example": 10 },
+          "per_page": { "type": "integer", "example": 12 },
+          "total": { "type": "integer", "example": 115 }
+        }
+      },
+      "PaginationLinks": {
+        "type": "object",
+        "properties": {
+          "first": { "type": ["string", "null"], "format": "uri" },
+          "last": { "type": ["string", "null"], "format": "uri" },
+          "prev": { "type": ["string", "null"], "format": "uri" },
+          "next": { "type": ["string", "null"], "format": "uri" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "required": ["message", "errors"],
+        "properties": {
+          "message": { "type": "string", "example": "Data yang dikirim tidak valid." },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

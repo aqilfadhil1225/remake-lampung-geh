@@ -1,0 +1,13 @@
+.watcher_state.json
+fallback_watcher.log
+__pycache__/
+*.py[cod]
+node_modules/
+.env
+.env.*
+dist/
+build/
+.DS_Store
+
+.venv-contract/
+!.env.example
