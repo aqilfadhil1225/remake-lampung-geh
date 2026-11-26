@@ -11,3 +11,6 @@ build/
 
 .venv-contract/
 !.env.example
+
+.schemathesis/
+.hypothesis/

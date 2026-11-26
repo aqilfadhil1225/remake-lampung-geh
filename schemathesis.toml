@@ -1,0 +1,2 @@
+[phases.coverage]
+unexpected-methods = ["get", "put", "post", "delete", "options", "patch"]
