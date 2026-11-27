@@ -26,7 +26,7 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
-            'username' => fake()->unique()->userName(),
+            'username' => Str::slug(fake()->unique()->userName(), '_'),
             'email' => fake()->unique()->safeEmail(),
             'bio' => fake()->sentence(),
             'avatar_path' => null,

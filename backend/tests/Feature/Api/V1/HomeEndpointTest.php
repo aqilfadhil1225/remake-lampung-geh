@@ -10,6 +10,7 @@ use Database\Seeders\PageSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\TagSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class HomeEndpointTest extends TestCase
@@ -19,6 +20,9 @@ class HomeEndpointTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Pastikan cache lama (api:v1:home) tidak mengotori pengujian.
+        Cache::flush();
 
         $this->seed([
             RoleSeeder::class,

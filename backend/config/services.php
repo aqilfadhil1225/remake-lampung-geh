@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'internal_api' => [
+        'key' => env('INTERNAL_API_KEY'),
+    ],
+
+    'turnstile' => [
+        'secret_key' => env('TURNSTILE_SECRET_KEY'),
+        'verify_url' => env('TURNSTILE_VERIFY_URL', 'https://challenges.cloudflare.com/turnstile/v0/siteverify'),
+    ],
+
 ];

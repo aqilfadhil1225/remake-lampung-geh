@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Database\Factories\LiveReportEntryFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LiveReportEntry extends Model
 {
+    /** @use HasFactory<LiveReportEntryFactory> */
+    use HasFactory;
     protected $fillable = [
         'article_id',
         'author_id',

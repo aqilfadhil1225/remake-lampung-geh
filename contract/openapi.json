@@ -148,6 +148,14 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Parameter permintaan tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -183,6 +191,14 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Parameter permintaan tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
               }
             }
           }
@@ -226,6 +242,14 @@
                     }
                   }
                 }
+              }
+            }
+          },
+          "404": {
+            "description": "Artikel tidak ditemukan atau belum berstatus published",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           },
@@ -336,6 +360,14 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Parameter permintaan tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -383,6 +415,14 @@
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
+          },
+          "422": {
+            "description": "Parameter permintaan tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -415,6 +455,14 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Parameter permintaan tidak valid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidationErrorResponse" }
               }
             }
           }

@@ -10,13 +10,35 @@ use App\Models\Article;
 use App\Models\Category;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class HomeController extends BaseController
 {
     /**
      * Ambil seluruh paket data blok Homepage + Mega-Menu News.
+     *
+     * Di-cache di Redis 5 menit (key: api:v1:home); di-flush otomatis
+     * oleh Laravel Observer saat artikel diterbitkan/diperbarui.
      */
-    public function __invoke(): HomePayloadResource
+    public function __invoke(): JsonResponse
+    {
+        $data = Cache::remember('api:v1:home', now()->addMinutes(5), function (): array {
+            $resource = new HomePayloadResource($this->buildPayload());
+
+            /** @var array<string, mixed> */
+            return json_decode((string) json_encode($resource), true);
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Susun payload agregasi Homepage + Mega-Menu News.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPayload(): array
     {
         $basePublishedQuery = Article::query()
             ->with(['category.parent', 'author', 'media'])
@@ -30,7 +52,7 @@ class HomeController extends BaseController
             ->orderByDesc('published_at')
             ->paginate(12);
 
-        return new HomePayloadResource([
+        return [
             'breaking_news' => $this->latestArticles(
                 (clone $basePublishedQuery)->where('is_breaking', true),
                 3,
@@ -80,7 +102,7 @@ class HomeController extends BaseController
                 ],
             ],
             'mega_menu_news' => $this->megaMenuNews($basePublishedQuery),
-        ]);
+        ];
     }
 
     /**

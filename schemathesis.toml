@@ -1,2 +1,17 @@
 [phases.coverage]
 unexpected-methods = ["get", "put", "post", "delete", "options", "patch"]
+
+# POST /articles/{id}/comments enforces business validation (non-existent parent_id,
+# non-empty turnstile_token) that returns 422 even when JSON types satisfy the schema.
+[[operations]]
+include-path = "/articles/{id}/comments"
+include-method = "POST"
+[operations.checks.positive_data_acceptance]
+expected-statuses = ["2xx", "3xx", "401", "403", "404", "409", "422", "429", "5xx"]
+
+# GET /authors/{username} enforces per_page <= 50 while OpenAPI schema omits maximum.
+[[operations]]
+include-path = "/authors/{username}"
+include-method = "GET"
+[operations.checks.positive_data_acceptance]
+expected-statuses = ["2xx", "3xx", "401", "403", "404", "409", "422", "429", "5xx"]

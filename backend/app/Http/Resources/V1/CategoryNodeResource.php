@@ -23,6 +23,9 @@ class CategoryNodeResource extends JsonResource
             'name' => $category->name,
             'slug' => $category->slug,
             'url' => $this->categoryUrl($category),
+            'description' => $category->description,
+            'articles_count' => (int) ($category->published_articles_count
+                ?? $category->articles()->where('status', 'published')->whereNotNull('published_at')->count()),
             'sort_order' => (int) $category->sort_order,
             'children' => CategoryNodeResource::collection($category->children),
         ];
