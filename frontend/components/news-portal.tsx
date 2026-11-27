@@ -308,6 +308,7 @@ export function NewsPortal() {
   );
   const [toast, setToast] = useState("");
   const [latestLimit, setLatestLimit] = useState(5);
+  const [currentDate, setCurrentDate] = useState("");
 
   const headlines = useMemo(
     () => articles.filter((article) => article.isHeadline),
@@ -323,6 +324,24 @@ export function NewsPortal() {
     const timeout = window.setTimeout(() => setToast(""), 2800);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    const updateDate = () => {
+      setCurrentDate(
+        new Intl.DateTimeFormat("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "Asia/Jakarta",
+        }).format(new Date()),
+      );
+    };
+
+    updateDate();
+    const interval = window.setInterval(updateDate, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   function showMessage(message: string) {
     setToast(message);
@@ -453,7 +472,7 @@ export function NewsPortal() {
               </button>
             </div>
             <div className="hidden shrink-0 items-center gap-4 text-xs text-white/75 md:flex">
-              <span>Kamis, 26 November 2026</span>
+              <span>{currentDate || "\u00a0"}</span>
               <span className="text-white/30">|</span>
               <button onClick={resetHome} type="button">
                 Redaksi
@@ -490,21 +509,18 @@ export function NewsPortal() {
                   </svg>
                 </button>
                 <button
-                  className="group flex items-center gap-2.5 text-left"
+                  aria-label="Lampung Geh News — Beranda"
+                  className="group flex items-center text-left"
                   onClick={resetHome}
                   type="button"
                 >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black tracking-tighter text-white shadow-sm transition group-hover:bg-brand-dark sm:h-10 sm:w-10 sm:text-xl">
-                    LG
-                  </span>
-                  <span className="flex flex-col leading-none">
-                    <span className="text-lg font-black tracking-tight text-heading sm:text-[21px]">
-                      LAMPUNG <span className="text-brand">GEH</span>
-                    </span>
-                    <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted sm:text-[11px]">
-                      NEWS PORTAL
-                    </span>
-                  </span>
+                  <Image
+                    alt="Lampung Geh News"
+                    className="h-auto w-[180px] sm:w-[225px]"
+                    height={90}
+                    src="/logo-lampung-geh-news.png"
+                    width={443}
+                  />
                 </button>
               </div>
 
@@ -1052,19 +1068,13 @@ export function NewsPortal() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
           <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
             <div className="space-y-4 md:col-span-4">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black tracking-tighter text-white">
-                  LG
-                </span>
-                <span className="flex flex-col leading-none">
-                  <span className="text-xl font-black tracking-tight text-heading">
-                    LAMPUNG <span className="text-brand">GEH</span>
-                  </span>
-                  <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
-                    NEWS PORTAL
-                  </span>
-                </span>
-              </div>
+              <Image
+                alt="Lampung Geh News"
+                className="h-auto w-[220px]"
+                height={90}
+                src="/logo-lampung-geh-news.png"
+                width={443}
+              />
               <p className="text-sm leading-relaxed text-body">
                 <strong>
                   Berita Terkini dan Terpercaya seputar Lampung!
@@ -1945,9 +1955,13 @@ export function NewsPortal() {
         aria-hidden={!mobileMenu}
       >
         <div className="flex items-center justify-between border-b border-border-subtle p-4">
-          <span className="font-black text-heading">
-            LAMPUNG <span className="text-brand">GEH</span>
-          </span>
+          <Image
+            alt="Lampung Geh News"
+            className="h-auto w-[180px]"
+            height={90}
+            src="/logo-lampung-geh-news.png"
+            width={443}
+          />
           <button
             aria-label="Tutup Menu"
             className="rounded-lg p-2 text-heading hover:bg-surface"
