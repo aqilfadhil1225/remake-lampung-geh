@@ -108,12 +108,12 @@ class ArticleDetailResource extends JsonResource
      */
     private function ogImage(Article $article): ?string
     {
-        $media = $article->getMedia('featured')->first();
+        $media = $article->getMedia('featured_image')->first();
 
         if ($media === null) {
             return null;
         }
 
-        return rtrim((string) config('app.url'), '/').$media->getUrl('og_image');
+        return $media->getFullUrl('og_image');
     }
 }

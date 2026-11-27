@@ -21,6 +21,61 @@ class DevSampleSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->isProduction()) {
+            throw new \RuntimeException('DevSampleSeeder dilarang dijalankan di environment production.');
+        }
+
+        $password = (string) env('DEV_SAMPLE_PASSWORD', '');
+
+        if ($password === '') {
+            throw new \RuntimeException('DEV_SAMPLE_PASSWORD belum diset. Isi variabel ini di file .env sebelum menjalankan DevSampleSeeder.');
+        }
+
+        // ------------------------------------------------------------------
+        // 0. Akun dev untuk login panel (admin, editor, reporter).
+        // ------------------------------------------------------------------
+        $devAdmin = User::updateOrCreate(
+            ['email' => 'admin@lampunggehnews.local'],
+            [
+                'name' => 'Dev Admin',
+                'username' => 'dev_admin',
+                'bio' => null,
+                'avatar_path' => null,
+                'is_active' => true,
+                'email_verified_at' => now(),
+                'password' => Hash::make($password),
+            ],
+        );
+        $devAdmin->assignRole('admin');
+
+        $devEditor = User::updateOrCreate(
+            ['email' => 'editor@lampunggehnews.local'],
+            [
+                'name' => 'Dev Editor',
+                'username' => 'dev_editor',
+                'bio' => null,
+                'avatar_path' => null,
+                'is_active' => true,
+                'email_verified_at' => now(),
+                'password' => Hash::make($password),
+            ],
+        );
+        $devEditor->assignRole('editor');
+
+        $devReporter = User::updateOrCreate(
+            ['email' => 'reporter@lampunggehnews.local'],
+            [
+                'name' => 'Dev Reporter',
+                'username' => 'dev_reporter',
+                'bio' => null,
+                'avatar_path' => null,
+                'is_active' => true,
+                'email_verified_at' => now(),
+                'password' => Hash::make($password),
+            ],
+        );
+        $devReporter->assignRole('reporter');
+
         // ------------------------------------------------------------------
         // 1. Penulis aktif sampel (password acak, DILARANG hardcode).
         // ------------------------------------------------------------------
@@ -144,6 +199,15 @@ class DevSampleSeeder extends Seeder
                 'published_at' => null,
             ],
         );
+
+        // ------------------------------------------------------------------
+        // 7. Assign reporter dev ke artikel live_report berstatus live.
+        // ------------------------------------------------------------------
+        $liveReportIds = Article::where('type', 'live_report')
+            ->where('live_status', 'live')
+            ->pluck('id');
+
+        $devReporter->assignedLiveReports()->syncWithoutDetaching($liveReportIds);
     }
 
     /**

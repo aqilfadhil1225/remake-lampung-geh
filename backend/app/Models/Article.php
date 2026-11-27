@@ -9,8 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class Article extends Model implements HasMedia
 {
@@ -64,6 +66,43 @@ class Article extends Model implements HasMedia
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Article $article): void {
+            if ($article->isDirty('reading_time_minutes')) {
+                return;
+            }
+
+            $wordCount = str_word_count(strip_tags((string) $article->content));
+            $article->reading_time_minutes = max(1, (int) ceil($wordCount / 200));
+        });
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('featured_image')->singleFile();
+    }
+
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $conversions = [
+            'thumbnail' => [320, 180],
+            'card' => [640, 360],
+            'detail' => [1440, 810],
+            'og_image' => [1200, 630],
+        ];
+
+        foreach ($conversions as $name => [$width, $height]) {
+            $conversion = $this->addMediaConversion($name)
+                ->fit(Fit::Crop, $width, $height)
+                ->format('webp');
+
+            if (app()->environment('testing')) {
+                $conversion->nonQueued();
+            }
+        }
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -87,6 +126,16 @@ class Article extends Model implements HasMedia
     public function liveReportEntries(): HasMany
     {
         return $this->hasMany(LiveReportEntry::class);
+    }
+
+    /**
+     * Reporter yang di-assign ke artikel live report.
+     *
+     * @return BelongsToMany<User, string>
+     */
+    public function liveReportAssignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'live_report_assignees')->withTimestamps();
     }
 
     public function comments(): HasMany

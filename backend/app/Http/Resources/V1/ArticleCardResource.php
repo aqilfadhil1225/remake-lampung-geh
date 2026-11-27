@@ -58,7 +58,7 @@ class ArticleCardResource extends JsonResource
      */
     private function featuredImage(Article $article): ?array
     {
-        $media = $article->getMedia('featured')->first();
+        $media = $article->getMedia('featured_image')->first();
 
         if ($media === null) {
             return null;
@@ -83,6 +83,6 @@ class ArticleCardResource extends JsonResource
      */
     private function mediaUrl(Media $media, string $conversion): string
     {
-        return rtrim((string) config('app.url'), '/').$media->getUrl($conversion);
+        return $media->getFullUrl($conversion);
     }
 }

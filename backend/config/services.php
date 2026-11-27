@@ -44,4 +44,11 @@ return [
         'verify_url' => env('TURNSTILE_VERIFY_URL', 'https://challenges.cloudflare.com/turnstile/v0/siteverify'),
     ],
 
+    'next_revalidate' => [
+        'enabled' => filter_var(env('NEXT_REVALIDATE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'url' => env('NEXT_REVALIDATE_URL', 'http://127.0.0.1:3000/api/revalidate'),
+        'secret' => env('NEXT_REVALIDATE_SECRET'),
+        'timeout' => (int) env('NEXT_REVALIDATE_TIMEOUT', 5),
+    ],
+
 ];
